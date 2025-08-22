@@ -18,7 +18,7 @@ impl<'a>TryFrom<(&'a [u8],&'a [AccountInfo])> for Deposit<'a>{
 
 impl<'a> Deposit<'a>{
     pub const DISCRIMINATOR:&'a u8=&0;
-    pub fn process0(&mut self)->ProgramResult{
+    pub fn process(&mut self)->ProgramResult{
         Transfer{
             from:self.accounts.owner,
             to:self.accounts.vault,
