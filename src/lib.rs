@@ -20,7 +20,7 @@ fn process_instruction(
     data:&[u8]
 )->ProgramResult{
     match data.split_first() {
-        Some((Deposit::DISCRIMINATOR,data))=>Deposit::try_from((data,accounts))?.process0(),
+        Some((Deposit::DISCRIMINATOR,data))=>Deposit::try_from((data,accounts))?.process(),
         Some((Withdraw::DISCRIMINATOR,data))=>Withdraw::try_from((data,accounts))?.process(),
         _=>Err(ProgramError::InvalidInstructionData)
     }
