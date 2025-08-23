@@ -23,3 +23,6 @@ impl <'a>TryFrom<(&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a u64,&'a u8
         Ok(Self { mint_a: mint_a, mint_b: mint_b, maker: maker, amount: amount, escrow_bump: None, seed:  None })
     }
 }
+impl<'a> Escrow<'a>{
+    pub const SIZE: usize = 32 + 32 + 32 + 8 + 1 + 1;
+}
