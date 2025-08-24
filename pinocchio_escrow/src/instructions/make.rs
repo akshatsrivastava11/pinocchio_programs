@@ -13,6 +13,7 @@ pub struct MakeAccount<'a>{
        pub mint_a: &'a AccountInfo,
     pub mint_b: &'a AccountInfo,
     pub maker: &'a AccountInfo,
+    pub  maker_mint_a: &'a AccountInfo,
     pub escrow:&'a AccountInfo,
     pub vault:&'a AccountInfo,
     pub escrow_bump: &'a u8,
@@ -23,10 +24,10 @@ pub struct MakeInstruction<'a>{
     pub seed:&'a u8
 }
 
-impl <'a>TryFrom<(&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a u64,&'a u8,&'a u8)> for Make<'a>{
+impl <'a>TryFrom<(&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a u64,&'a u8,&'a u8)> for Make<'a>{
     type Error = ProgramError;
-    fn try_from(data:(&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a u64,&'a u8,&'a u8)) -> Result<Self, Self::Error> {
-              let (mint_a,mint_b,maker,escrow,vault,amount,escrow_bump,seed) = data else{
+    fn try_from(data:(&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a u64,&'a u8,&'a u8)) -> Result<Self, Self::Error> {
+              let (mint_a,mint_b,maker,maker_mint_a,escrow,vault,amount,escrow_bump,seed) = data else{
             return Err(ProgramError::NotEnoughAccountKeys);
         };
         if !maker.is_signer(){
@@ -47,6 +48,7 @@ impl <'a>TryFrom<(&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a AccountInf
         if !vault.key().ne(&vault_key){
             return Err(ProgramError::InvalidSeeds)
         };
+
         let (escrow_key,_)=find_program_address(
             &[b"escrow",maker.key().as_ref(),seed.to_le_bytes().as_ref()], 
         &pinocchio_system::ID);
@@ -54,16 +56,18 @@ impl <'a>TryFrom<(&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a AccountInf
         if escrow.key().ne(&escrow_key){
          return Err(ProgramError::InvalidSeeds);   
         }
-        Ok(Self { accounts: MakeAccount{seed:seed,escrow_bump:escrow_bump,escrow:escrow,vault:vault,maker:maker,mint_a:mint_a,mint_b:mint_b}, instruction_data: MakeInstruction { amount: &amount, seed: seed  }})
+
+        Ok(Self { accounts: MakeAccount{seed:seed,escrow_bump:escrow_bump,maker_mint_a:maker_mint_a,escrow:escrow,vault:vault,maker:maker,mint_a:mint_a,mint_b:mint_b}, instruction_data: MakeInstruction { amount: &amount, seed: seed  }})
     }
 }  
 impl<'a> Make<'a>{
     pub fn process(&mut self)->ProgramResult{
         self.initialize();
-        Transfer{
-            from:self.accounts.maker,
+        pinocchio_token::instructions::Transfer{
+            from:self.accounts.maker_mint_a,
             to:self.accounts.vault,
-            lamports:*self.instruction_data.amount
+            amount:*self.instruction_data.amount,
+            authority:self.accounts.maker
         }.invoke()
     }
     fn initialize(&mut self)->ProgramResult{
@@ -71,7 +75,7 @@ impl<'a> Make<'a>{
             &[b"escrow",self.accounts.maker.key().as_ref(),self.instruction_data.seed.to_le_bytes().as_ref()], 
         &pinocchio_system::ID);
 
-        let escrowAccounts=Escrow::from(Escrow { mint_a: self.accounts.mint_a, mint_b: self.accounts.mint_b, maker: self.accounts.maker, amount: self.instruction_data.amount, escrow_bump: Some(&bump), seed: Some(self.instruction_data.seed) });
+        let escrowAccounts=Escrow::try_from(Escrow { mint_a: self.accounts.mint_a, mint_b: self.accounts.mint_b,maker_mint_a:self.accounts.maker_mint_a, maker: self.accounts.maker, amount: self.instruction_data.amount, escrow_bump: Some(&bump), seed: Some(self.instruction_data.seed) });
         pinocchio_system::instructions::CreateAccount{
             from:self.accounts.maker,
             to:self.accounts.escrow,

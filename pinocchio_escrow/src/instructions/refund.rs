@@ -11,6 +11,7 @@ pub struct RefundAccounts<'a>{
            pub mint_a: &'a AccountInfo,
     pub mint_b: &'a AccountInfo,
     pub maker: &'a AccountInfo,
+    pub maker_mint_a: &'a AccountInfo,
     pub escrow:&'a  AccountInfo,
     pub vault:&'a AccountInfo,
     pub escrow_bump: &'a u8,
@@ -21,10 +22,10 @@ pub struct RefundInstruction<'a>{
     pub seed:&'a u8
 }
 
-impl <'a>TryFrom<(&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a u64,&'a u8,&'a u8)> for Refund<'a>{
+impl <'a>TryFrom<(&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a u64,&'a u8,&'a u8)> for Refund<'a>{
     type Error = ProgramError;
-    fn try_from(data: (&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a u64,&'a u8,&'a u8)) -> Result<Self, Self::Error> {
-    let (mint_a,mint_b,maker,escrow,vault,amount,escrow_bump,seed) = data else{
+    fn try_from(data: (&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a u64,&'a u8,&'a u8)) -> Result<Self, Self::Error> {
+    let (mint_a,mint_b,maker,maker_mint_a,escrow,vault,amount,escrow_bump,seed) = data else{
             return Err(ProgramError::NotEnoughAccountKeys);
         };
         if !maker.is_signer(){
@@ -52,7 +53,7 @@ impl <'a>TryFrom<(&'a AccountInfo,&'a AccountInfo,&'a AccountInfo,&'a AccountInf
         if escrow.key().ne(&escrow_key){
          return Err(ProgramError::InvalidSeeds);   
         }
-        Ok(Self { accounts: RefundAccounts{seed:seed,escrow_bump:escrow_bump,escrow: escrow,vault:vault,maker:maker,mint_a:mint_a,mint_b:mint_b}, instruction_data: RefundInstruction { amount: &amount, seed: seed  }})
+        Ok(Self { accounts: RefundAccounts{seed:seed,escrow_bump:escrow_bump,maker_mint_a:maker_mint_a,escrow: escrow,vault:vault,maker:maker,mint_a:mint_a,mint_b:mint_b}, instruction_data: RefundInstruction { amount: &amount, seed: seed  }})
     }
 }
 
@@ -61,10 +62,11 @@ impl<'a> Refund<'a> {
         let key=self.instruction_data.seed.to_le_bytes();
         let seeds=[Seed::from(b"vault"),Seed::from(self.accounts.maker.key().as_ref()),Seed::from(key.as_ref())];
         let signers=[Signer::from(&seeds)];
-        Transfer{
+        pinocchio_token::instructions::Transfer{
             from:self.accounts.vault,
             to:self.accounts.maker,
-            lamports:*self.instruction_data.amount
+            amount:*self.instruction_data.amount,
+            authority:self.accounts.maker
         }.invoke_signed(&signers);
 
 
